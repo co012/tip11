@@ -10,12 +10,20 @@ typedef bit<9>  egressSpec_t;
 typedef bit<48> macAddr_t;
 
 const macAddr_t STP_ADDR = 0x0180C2000000;
+const bit<16> ROOT_ID = 7;
 
 
 header ethernet_t {
     macAddr_t dstAddr;
     macAddr_t srcAddr;
-    bit<16>   etherType;
+    bit<16> ethertype;
+}
+
+
+header bpdu_t {
+    bit<24> llc;
+    bit<40> proc_data;
+    bit<16> root_id;
 }
 
 
@@ -30,6 +38,7 @@ struct metadata {
 
 struct headers {
     ethernet_t   ethernet;
+    bpdu_t bpdu;
 }
 
 /*************************************************************************
@@ -45,10 +54,20 @@ parser MyParser(packet_in packet,
         transition parse_ethernet;
     }
 
+    state parse_ethertype {
+        transition accept;
+    }
+    
+    state parse_bpdu {
+        packet.extract(hdr.bpdu);
+        transition accept;
+    }
+
     state parse_ethernet {
         packet.extract(hdr.ethernet);
-        transition select(hdr.ethernet.etherType) {
-            default : accept;
+        transition select(hdr.ethernet.dstAddr) {
+            STP_ADDR : parse_bpdu;
+            default : parse_ethertype;
         }
     }
 }
@@ -102,15 +121,14 @@ control MyIngress(inout headers hdr,
 
     apply {
         if (!hdr.ethernet.isValid()) return;
-        
         guard_lookup.apply();
 
-        if (meta.guard == BPDU_GUARD && hdr.ethernet.dstAddr == STP_ADDR) {
-            drop();
-            return;
+        if (hdr.bpdu.isValid()) {
+            if (meta.guard == BPDU_GUARD) {drop(); return;}
+            if (meta.guard == ROOT_GUARD && hdr.bpdu.root_id < ROOT_ID) {drop(); return;}
         }
 
-        if(standard_metadata.ingress_port != 2) mac_forward(2);
+        if(standard_metadata.ingress_port != 4) mac_forward(4);
 
     }
 }
@@ -152,6 +170,7 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
+        packet.emit(hdr.bpdu);
     }
 }
 

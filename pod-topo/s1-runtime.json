@@ -22,6 +22,16 @@
       "action_params": {
         "guard": 1
       }
+    },
+    {
+      "table": "MyIngress.guard_lookup",
+      "match": {
+        "standard_metadata.ingress_port": 3
+      },
+      "action_name": "MyIngress.set_guard",
+      "action_params": {
+        "guard": 2
+      }
     }
   ]
 }
