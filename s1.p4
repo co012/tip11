@@ -121,12 +121,9 @@ control MyIngress(inout headers hdr,
 
     apply {
         if (!hdr.ethernet.isValid()) return;
-        guard_lookup.apply();
+        guard_lookup.apply(); // Store guard type in meta.guard field
 
-        if (hdr.bpdu.isValid()) {
-            if (meta.guard == BPDU_GUARD) {drop(); return;}
-            if (meta.guard == ROOT_GUARD && hdr.bpdu.root_id < ROOT_ID) {drop(); return;}
-        }
+        //TODO: guards
 
         if(standard_metadata.ingress_port != 4) mac_forward(4);
 
